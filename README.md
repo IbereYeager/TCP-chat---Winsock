@@ -9,4 +9,4 @@ Sending Thread: Runs a separate thread that lets the server send messages to the
 Receiving Loop: Keeps listening for incoming messages from the client and prints them out when they arrive.
 Cleanup: Closes the sockets and shuts down Winsock properly when everything's done.
 
-FYI: To actually test this, you'll need a client. I used PuTTY for testing the communication
+FYI: To actually test this, you'll need a client. I used PuTTY for testing...

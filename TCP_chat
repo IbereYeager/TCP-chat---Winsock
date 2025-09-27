@@ -1,0 +1,106 @@
+#include <iostream>
+#include <WS2tcpip.h>
+#include <thread>
+#include <string>
+#include <windows.h>
+
+#pragma comment (lib, "ws2_32.lib")
+
+static void SendMSG2Client(SOCKET& ClientSocket) {
+    std::string texto;
+
+    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD mode;
+    GetConsoleMode(hStdin, &mode);
+    SetConsoleMode(hStdin, mode & (~ENABLE_ECHO_INPUT));
+
+    while (true) {
+        std::getline(std::cin, texto);
+
+        if (texto == "exit") {
+            send(ClientSocket, texto.c_str(), texto.size() + 1, 0);
+            break;
+        }
+
+        if (!texto.empty()) {
+      
+            texto += "\r\n";
+            send(ClientSocket, texto.c_str(), texto.size(), 0);
+            std::cout << "\n[Server]: " << texto;
+        }
+    }
+
+    SetConsoleMode(hStdin, mode);
+}
+
+int main() {
+    WSADATA WsData;
+    WORD versao = MAKEWORD(2, 2);
+
+    int wsOK = WSAStartup(versao, &WsData);
+    if (wsOK != 0) {
+        std::cerr << "Socket error! winsock wasn't initialized!" << std::endl;
+        return 1;
+    }
+
+    SOCKET ServerSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (ServerSocket == INVALID_SOCKET) {
+        std::cerr << "Socket error! server socket wasn't created!" << std::endl;
+        return 1;
+    }
+
+    sockaddr_in conectar;
+    conectar.sin_family = AF_INET;
+    conectar.sin_port = htons(54000);
+    conectar.sin_addr.S_un.S_addr = INADDR_ANY;
+
+    bind(ServerSocket, (sockaddr*)&conectar, sizeof(conectar));
+    listen(ServerSocket, SOMAXCONN);
+
+    sockaddr_in client;
+    int clientTAM = sizeof(client);
+
+    SOCKET ClientSocket = accept(ServerSocket, (sockaddr*)&client, &clientTAM);
+
+    char hostName[NI_MAXHOST];
+    char server_port[NI_MAXHOST];
+    ZeroMemory(hostName, NI_MAXHOST);
+    ZeroMemory(server_port, NI_MAXHOST);
+
+    if (getnameinfo((sockaddr*)&client, sizeof(client), hostName, NI_MAXHOST, server_port, NI_MAXSERV, 0) == 0) {
+        std::cout << "Client " << hostName << " connected on port " << server_port << " successfully" << std::endl;
+    }
+    else {
+        inet_ntop(AF_INET, &client.sin_addr, hostName, NI_MAXHOST);
+        std::cout << "The client " << hostName << " is connected on port " <<
+            ntohs(client.sin_port) << std::endl;
+    }
+
+    closesocket(ServerSocket);
+    std::thread enviarThread(SendMSG2Client, std::ref(ClientSocket));
+
+    char Keyboardbuff[4096];
+    while (true) {
+        ZeroMemory(Keyboardbuff, 4096);
+        int bytesRecebidos = recv(ClientSocket, Keyboardbuff, 4096, 0);
+        if (bytesRecebidos == SOCKET_ERROR) {
+            std::cerr << "Error in receiving data (SOCKET_ERROR)" << std::endl;
+            break;
+        }
+        if (bytesRecebidos == 0) {
+            std::cout << "The client has disconnected" << std::endl;
+            break;
+        }
+
+        std::string mensagem = std::string(Keyboardbuff, 0, bytesRecebidos);
+        if (!mensagem.empty() && mensagem != "\n" && mensagem != "\r\n") {
+            std::cout << "[Cliente]: " << mensagem;
+
+        }
+    }
+
+    closesocket(ClientSocket);
+    enviarThread.join();
+    WSACleanup();
+    return 0;
+}
